@@ -6,6 +6,7 @@ from musiclib import MusicLib, FileUtility
 import time
 import sys
 import re
+import os
 from log_set import B
 from watchdog.events import FileSystemEventHandler
 from watchdog.observers import Observer
@@ -21,11 +22,18 @@ class MyEventHandler(FileSystemEventHandler):
             exit_code = self.music.do_file(event.src_path)
             B.log.info("File Processed: %s. Exit Code %s" % (event.src_path, exit_code))
 
+    def catch_moved_handler(self, event):
+        if os.path.dirname(event.src_path) is os.path.dirname(event.dest_path):
+            if re.match(r'.*\.m4a$', event.dest_path):
+                B.log.info("New File: %s" % event.dest_path)
+                exit_code = self.music.do_file(event.dest_path)
+                B.log.info("File Processed: %s. Exit Code %s" % (event.dest_path, exit_code))
+
     def catch_all_handler(self, event):
         B.log.debug(event)
 
     def on_moved(self, event):
-        self.catch_all_handler(event)
+        self.catch_moved_handler(event)
 
     def on_created(self, event):
         self.catch_created_handler(event)
