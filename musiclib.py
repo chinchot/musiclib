@@ -1,10 +1,11 @@
 import os
+import re
+import sys
 import string
 import urllib2
 import urllib
 import shutil
 import json
-import sys
 from config import Config
 from log_set import B
 from subprocess import Popen, PIPE, STDOUT
@@ -18,15 +19,16 @@ class FMMetadata:
         self.have_metadata = False
         B.log.debug("Init FMMetadata")
 
-    def get_track_info(self, artist, album, track):
-        B.log.info("Obtaining track info for: artist=%s album=%s track=%s" % (artist, album, track))
+    def get_track_info(self, file_metadata):
+        B.log.info("Obtaining track info for: artist=%s album=%s track=%s"
+                   % (file_metadata['artist'], file_metadata['album'], file_metadata['title']))
         result = {"name": ""}
-        if not self.is_album_current(artist, album):
+        if not self.is_album_current(file_metadata['artist'], file_metadata['album']):
             B.log.debug("Album not current picking up metadata from service")
-            self.have_metadata = self.get_metadata_from_api(artist, album)
+            self.have_metadata = self.get_metadata_from_api(file_metadata['artist'], file_metadata['album'])
         if self.have_metadata:
             B.log.debug("Metadata is already home, we can try to match the track name.")
-            result = self.get_track(track)
+            result = self.get_track(file_metadata)
         return result
 
     def is_album_current(self, artist, album):
@@ -36,19 +38,32 @@ class FMMetadata:
         compare_album = self.album.get("artist") == artist.decode('UTF-8', 'ignore')
         return compare_name and compare_album
 
-    def get_track(self, track):
+    def get_track(self, file_metadata):
         total_track_count = str(len(self.album["tracks"].get("track")))
+        track_number_found = False
         B.log.debug("Total track count is %s" % total_track_count)
-        result = {"name": track, "number": "0/%s" % total_track_count, "artist": self.album.get("artist")}
+        result = {"name": file_metadata['title'], "number": "0/%s" % total_track_count,
+                  "artist": self.album.get("artist")}
         for cur_track in self.album["tracks"].get("track"):
             current_track = StringUtil.create_slug(cur_track.get("name")).upper().encode('ascii', 'ignore')
-            input_track = StringUtil.create_slug(track).upper()
+            input_track = StringUtil.create_slug(file_metadata['title']).upper()
             B.log.debug("Comparing track name '%s' to '%s'" % (current_track, input_track))
             if current_track == input_track:
-                B.log.info("Assigning track number %s to track %s" % (cur_track.get("@attr").get("rank").encode('ascii', 'ignore'), track))
+                B.log.info("Assigning track number %s to track %s" %
+                           (cur_track.get("@attr").get("rank").encode('ascii', 'ignore'), file_metadata['title']))
                 result["number"] = "%s/%s" % (cur_track.get("@attr").get("rank"), total_track_count)
-                return result
+                track_number_found = True
+                break
+        if not track_number_found:
+            alt_track_number = self.alternative_track_number(file_metadata['target_directory'])
+            result["number"] = "%s/%s" % (alt_track_number, total_track_count)
+            B.log.info("Assigning alt track number %s to track %s" % (alt_track_number, file_metadata['title']))
         return result
+
+    @staticmethod
+    def alternative_track_number( target_directory):
+        files = [f for f in os.listdir(target_directory) if re.match(r'.*\.m4a$', f)]
+        return len(files) + 1
 
     def get_metadata_from_api(self, artist, album):
         result = True
@@ -105,6 +120,10 @@ class MediaFile:
             self.metadata["alt_album"] = StringUtil.create_slug(self.metadata["album"])
             self.metadata["alt_artist"] = StringUtil.create_slug(self.metadata["artist"])
             self.metadata["alt_title"] = StringUtil.create_slug(self.metadata["title"])
+            self.metadata["target_directory"] = os.path.join(os.path.dirname(file_name),
+                                                             "Processed", self.metadata["alt_artist"],
+                                                             self.metadata["alt_album"])
+        B.log.debug("get_metadata = %s" % self.metadata)
         return self.metadata
 
     def valid_metadata(self):
@@ -235,25 +254,17 @@ class MusicLib:
             B.log.error("File %s does not exists" % file_name)
             return False
         file_metadata = self.media_file.get_metadata(file_name)
-        B.log.debug("Metadata from file %s" % file_name)
-        B.log.debug(file_metadata)
         if not self.media_file.valid_metadata():
             B.log.error("Couldn't get the metadata from file: %s" % file_name)
             return False
-        track_info = self.fm_metadata.get_track_info(
-            artist=file_metadata["artist"],
-            album=file_metadata["album"],
-            track=file_metadata["title"])
-        target_directory = os.path.join(os.path.dirname(file_name),
-                                        "Processed",
-                                        file_metadata["alt_artist"],
-                                        file_metadata["alt_album"])
-        B.log.info("Moving %s to %s" % (file_name, target_directory))
+        FileUtility.create_directory(dir_name=file_metadata["target_directory"])
+        track_info = self.fm_metadata.get_track_info(file_metadata)
+        B.log.info("Moving %s to %s" % (file_name, file_metadata["target_directory"]))
         if track_info.get("name") == "":
-            if self.media_file.move(file_name, target_directory) != 0:
+            if self.media_file.move(file_name, file_metadata["target_directory"]) != 0:
                 return False
         else:
-            if self.media_file.move_with_new_metadata(file_name, target_directory, track_info) != 0:
+            if self.media_file.move_with_new_metadata(file_name, file_metadata["target_directory"], track_info) != 0:
                 return False
         return True
 
