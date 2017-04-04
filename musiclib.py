@@ -93,6 +93,7 @@ class FMMetadata:
 class MediaFile:
 
     def __init__(self):
+        self.ffmpeg_command = "ffmpeg"
         self.metadata = {}
         self.file_util = FileUtility()
         B.log.warning("Init MediaFile")
@@ -100,8 +101,8 @@ class MediaFile:
     def get_metadata(self, file_name):
         B.log.info("Getting metadata from file %s." % file_name)
         self.metadata = {}
-        process = Popen(["ffmpeg", "-y", "-i", file_name, "-f", "ffmetadata", "/dev/null"], stdout=PIPE, stderr=STDOUT)
-        command_executed = ' '.join(("ffmpeg", "-y", "-i", file_name, "-f", "ffmetadata", "/dev/null"))
+        process = Popen([self.ffmpeg_command, "-y", "-i", file_name, "-f", "ffmetadata", "/dev/null"], stdout=PIPE, stderr=STDOUT)
+        command_executed = ' '.join((self.ffmpeg_command, "-y", "-i", file_name, "-f", "ffmetadata", "/dev/null"))
         B.log.debug("Executed command: %s" % command_executed)
         stream_data = process.communicate()[0]
         exitcode = process.returncode
@@ -115,6 +116,7 @@ class MediaFile:
             if line.find(" title ") > 0:
                 self.metadata["title"] = line.split(":")[1].strip(b" ")
         self.metadata["exit_code"] = exitcode
+        self.metadata["source_file"] = file_name
         B.log.debug("Exit Code from ffmpeg = %s" % exitcode)
         if exitcode == 0:
             self.metadata["alt_album"] = StringUtil.create_slug(self.metadata["album"])
@@ -123,70 +125,95 @@ class MediaFile:
             self.metadata["target_directory"] = os.path.join(os.path.dirname(file_name),
                                                              "Processed", self.metadata["alt_artist"],
                                                              self.metadata["alt_album"])
+            self.metadata["target_file"] = os.path.join(self.metadata["target_directory"], os.path.basename(file_name))
         B.log.debug("get_metadata = %s" % self.metadata)
         return self.metadata
 
     def valid_metadata(self):
         return self.metadata["exit_code"] == 0
 
-    def check_before_move(self, source_file_name, target_directory):
-        B.log.debug("check_before_move (%s, %s)" % (source_file_name, target_directory))
-        if not os.path.isfile(source_file_name):
-            B.log.error("The source file %s does not exists." % source_file_name)
+    def check_before_move(self):
+        B.log.debug("check_before_move (%s, %s)" % (self.metadata["source_file"], self.metadata["target_directory"]))
+        if not os.path.isfile(self.metadata["source_file"]):
+            B.log.error("The source file %s does not exists." % self.metadata["source_file"])
             return False
-        return self.file_util.create_directory(target_directory)
+        return self.file_util.create_directory(self.metadata["target_directory"])
 
     @staticmethod
     def target_file(source_file_name, target_directory):
         return os.path.join(target_directory, os.path.basename(source_file_name))
 
-    def move(self, source_file_name, target_directory):
+    def move(self):
         error_code = 0
         B.log.info("Moving file without adding metadata.")
-        if not self.check_before_move(source_file_name, target_directory):
+        if not self.check_before_move():
             error_code = -1
             return error_code
-        target_file_name = self.target_file(source_file_name, target_directory)
-        B.log.debug("target_file_name = %s" % target_file_name)
+        B.log.debug("target_file = %s" % self.metadata["target_file"])
         # copy the file with the same metadata to the right directory
         try:
-            B.log.debug("Moving File %s to %s" % (source_file_name, target_file_name))
-            shutil.move(source_file_name, target_file_name)
+            B.log.debug("Moving File %s to %s" % (self.metadata["source_file"], self.metadata["target_file"]))
+            shutil.move(self.metadata["source_file"], self.metadata["target_file"])
         except IOError:
-            B.log.warning("Sorry but was not able to move the file %s to %s" % (source_file_name, target_file_name))
+            B.log.warning("Sorry but was not able to move the file %s to %s" %
+                          (self.metadata["source_file"], self.metadata["target_file"]))
             error_code = -1
             pass
         B.log.debug("move error code = %s" % error_code)
         return error_code
 
-    def move_with_new_metadata(self, source_file_name, target_directory, track_info):
+    def move_with_new_metadata(self, track_info):
         error_code = -1
         B.log.info("Moving file adding metadata.")
-        if not self.check_before_move(source_file_name, target_directory):
+        if not self.check_before_move():
             return error_code
-        target_file_name = self.target_file(source_file_name, target_directory)
-        process = Popen(['ffmpeg', '-y', '-i', r'%s' % source_file_name, '-c:a', 'copy',
+        process = Popen([self.ffmpeg_command, '-y', '-i', r'%s' % self.metadata["source_file"], '-c:a', 'copy',
                          '-metadata', 'track=%s' % track_info['number'],
                          '-metadata', 'album_artist=%s' % track_info["artist"],
                          '-metadata', 'disc=1/1',
-                         r'%s' % target_file_name],
+                         r'%s' % self.metadata["target_file"]],
                         stdout=PIPE, stderr=PIPE, shell=False)
         stdout_data, stderr_data = process.communicate()
-        command_executed = ' '.join(('ffmpeg', '-y', '-i', r'%s' % source_file_name, '-c:a', 'copy',
+        command_executed = ' '.join((self.ffmpeg_command, '-y', '-i', r'%s' % self.metadata["source_file"], '-c:a', 'copy',
                                      '-metadata', 'track=%s' % track_info['number'],
                                      '-metadata', 'album_artist=%s' % track_info["artist"],
                                      '-metadata', 'disc=1/1',
-                                     r'%s' % target_file_name))
+                                     r'%s' % self.metadata["target_file"]))
         B.log.info("Executed command: %s" % command_executed)
         error_code = process.returncode
-        B.log.debug("Error Code from ffmpeg = %s" % error_code)
+        B.log.debug("Error Code from %s = %s" % (self.ffmpeg_command, error_code))
         if error_code == 0:
             try:
-                B.log.debug("Deleting file %s" % source_file_name)
-                os.remove(source_file_name)
+                B.log.debug("Deleting file %s" % self.metadata["source_file"])
+                os.remove(self.metadata["source_file"])
             except IOError:
-                B.log.warning("Sorry but was not able to delete file %s" % source_file_name)
+                B.log.warning("Sorry but was not able to delete file %s" % self.metadata["source_file"])
                 pass
+        else:
+            B.log.info("STD OUT")
+            B.log.info(stdout_data)
+            B.log.error("STD ERR")
+            B.log.error(stderr_data)
+        return error_code
+
+
+class ItunesInterface:
+
+    def __init__(self):
+        B.log.debug("Init ItunesInterface")
+
+    @staticmethod
+    def add_file(file_name):
+        command = 'osascript'
+        process = Popen([command, '-e', 'tell application "iTunes" to add POSIX file "%s"' % file_name],
+                         stdout=PIPE, stderr=PIPE, shell=False)
+        stdout_data, stderr_data = process.communicate()
+        command_executed = ' '.join((command, '-e', 'tell application "iTunes" to add POSIX file "%s"' % file_name))
+        B.log.info("Executed command: %s" % command_executed)
+        error_code = process.returncode
+        B.log.debug("Error Code from %s = %s" % (command, error_code))
+        if error_code == 0:
+            B.log.info("Added file '%s' to iTunes" % file_name)
         else:
             B.log.info("STD OUT")
             B.log.info(stdout_data)
@@ -245,6 +272,7 @@ class MusicLib:
         self.fm_metadata = FMMetadata()
         self.media_file = MediaFile()
         self.music_file = FileUtility()
+        self.itunes = ItunesInterface()
         B.log.debug("Init MusicLib")
 
     def process_file(self, file_name):
@@ -261,11 +289,17 @@ class MusicLib:
         track_info = self.fm_metadata.get_track_info(file_metadata)
         B.log.info("Moving %s to %s" % (file_name, file_metadata["target_directory"]))
         if track_info.get("name") == "":
-            if self.media_file.move(file_name, file_metadata["target_directory"]) != 0:
+            if self.media_file.move() != 0:
                 return False
         else:
-            if self.media_file.move_with_new_metadata(file_name, file_metadata["target_directory"], track_info) != 0:
+            if self.media_file.move_with_new_metadata( track_info) != 0:
                 return False
+        if self.itunes.add_file(file_metadata["target_file"]) == 0:
+            B.log.info("Added file Track %s - '%s' to iTunes" % (track_info["number"],
+                                                                 os.path.basename(file_metadata["target_file"])))
+        else:
+            B.log.warning("Song '%s'no added  to iTunes" % os.path.basename(file_metadata["target_file"]))
+            return False
         return True
 
     def do_file(self, file_name):
