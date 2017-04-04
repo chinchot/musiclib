@@ -96,13 +96,14 @@ class MediaFile:
         self.ffmpeg_command = "ffmpeg"
         self.metadata = {}
         self.file_util = FileUtility()
-        B.log.warning("Init MediaFile")
+        B.log.info("Init MediaFile")
 
     def get_metadata(self, file_name):
         B.log.info("Getting metadata from file %s." % file_name)
         self.metadata = {}
-        process = Popen([self.ffmpeg_command, "-y", "-i", file_name, "-f", "ffmetadata", "/dev/null"], stdout=PIPE, stderr=STDOUT)
-        command_executed = ' '.join((self.ffmpeg_command, "-y", "-i", file_name, "-f", "ffmetadata", "/dev/null"))
+        exec_array = [self.ffmpeg_command, "-y", "-i", file_name, "-f", "ffmetadata", "/dev/null"]
+        process = Popen(exec_array, stdout=PIPE, stderr=STDOUT)
+        command_executed = ' '.join(exec_array)
         B.log.debug("Executed command: %s" % command_executed)
         stream_data = process.communicate()[0]
         exitcode = process.returncode
@@ -167,18 +168,14 @@ class MediaFile:
         B.log.info("Moving file adding metadata.")
         if not self.check_before_move():
             return error_code
-        process = Popen([self.ffmpeg_command, '-y', '-i', r'%s' % self.metadata["source_file"], '-c:a', 'copy',
-                         '-metadata', 'track=%s' % track_info['number'],
-                         '-metadata', 'album_artist=%s' % track_info["artist"],
-                         '-metadata', 'disc=1/1',
-                         r'%s' % self.metadata["target_file"]],
-                        stdout=PIPE, stderr=PIPE, shell=False)
+        exec_array = [self.ffmpeg_command, '-y', '-i', r'%s' % self.metadata["source_file"], '-c:a', 'copy',
+                      '-metadata', 'track=%s' % track_info['number'],
+                      '-metadata', 'album_artist=%s' % track_info["artist"],
+                      '-metadata', 'disc=1/1',
+                      r'%s' % self.metadata["target_file"]]
+        process = Popen(exec_array, stdout=PIPE, stderr=PIPE, shell=False)
         stdout_data, stderr_data = process.communicate()
-        command_executed = ' '.join((self.ffmpeg_command, '-y', '-i', r'%s' % self.metadata["source_file"], '-c:a', 'copy',
-                                     '-metadata', 'track=%s' % track_info['number'],
-                                     '-metadata', 'album_artist=%s' % track_info["artist"],
-                                     '-metadata', 'disc=1/1',
-                                     r'%s' % self.metadata["target_file"]))
+        command_executed = ' '.join(exec_array)
         B.log.info("Executed command: %s" % command_executed)
         error_code = process.returncode
         B.log.debug("Error Code from %s = %s" % (self.ffmpeg_command, error_code))
@@ -205,10 +202,11 @@ class ItunesInterface:
     @staticmethod
     def add_file(file_name):
         command = 'osascript'
-        process = Popen([command, '-e', 'tell application "iTunes" to add POSIX file "%s"' % file_name],
-                         stdout=PIPE, stderr=PIPE, shell=False)
+        exec_array = [command, '-e', 'set foo to posix file "%s" as alias' % file_name,
+                      '-e', 'tell application "iTunes" to add foo']
+        process = Popen(exec_array, stdout=PIPE, stderr=PIPE, shell=False)
         stdout_data, stderr_data = process.communicate()
-        command_executed = ' '.join((command, '-e', 'tell application "iTunes" to add POSIX file "%s"' % file_name))
+        command_executed = ' '.join(exec_array)
         B.log.info("Executed command: %s" % command_executed)
         error_code = process.returncode
         B.log.debug("Error Code from %s = %s" % (command, error_code))
