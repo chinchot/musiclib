@@ -92,3 +92,4 @@ ENV/
 .idea
 *.dev.cfg
 *.dev.ini
+*/.pytest_cache/*
