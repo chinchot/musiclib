@@ -1,3 +1,4 @@
+import logging
 import os
 import re
 import sys
@@ -226,22 +227,22 @@ class ItunesInterface:
 class FileUtility:
 
     def __init__(self):
-        B.log.debug("Init FileUtility")
+        logging.debug("Init FileUtility")
 
     @staticmethod
     def create_directory(dir_name="."):
         if os.path.exists(dir_name):
-            B.log.debug("Directory %s already exists" % dir_name)
+            logging.debug("Directory %s already exists" % dir_name)
             if not os.path.isdir(dir_name):
-                B.log.error("trying to create a directory where a file name with the same exists already: %s"
+                logging.error("trying to create a directory where a file name with the same exists already: %s"
                             % dir_name)
                 return False
         else:
-            B.log.debug("Creating directory: %s" % dir_name)
+            logging.debug("Creating directory: %s" % dir_name)
             try:
                 os.makedirs(dir_name)
             except IOError:
-                B.log.error("Were not able to create directory %s" % dir_name)
+                logging.error("Were not able to create directory %s" % dir_name)
                 return False
         return True
 
