@@ -1,25 +1,21 @@
-import ConfigParser
-import os
-import sys
-
-def singleton(cls):
-    instances = {}
-
-    def get_instance():
-        if cls not in instances:
-            instances[cls] = cls()
-        return instances[cls]
-    return get_instance()
+import yaml
 
 
-@singleton
-class Config:
-
+class MusicLibConfig:
     def __init__(self):
-        self.config = ConfigParser.ConfigParser()
-        config_file = "%s.dev.ini" % os.path.basename(sys.argv[0]).replace(".py", "")
-        self.config.read(config_file)
-        return
+        self._file_name = '/Users/manolo/Documents/python/musiclib/musiclib.dev.ini'
+        self._config_content = self._read()
+        pass
 
-    def getvalue(self, section, key):
-        return self.config.get(section=section, option=key)
+    def _read(self):
+        with open(self._file_name) as file_handler:
+            config_content = yaml.load(file_handler, Loader=yaml.FullLoader)
+        return config_content
+
+    @property
+    def fm_api_key(self):
+        return self._config_content.get('fm').get('API_key')
+
+    @property
+    def fm_url(self):
+        return self._config_content.get('fm').get('URL')
