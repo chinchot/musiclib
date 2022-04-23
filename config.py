@@ -3,7 +3,7 @@ import yaml
 
 class MusicLibConfig:
     def __init__(self):
-        self._file_name = '/Users/manolo/Documents/python/musiclib/musiclib.dev.ini'
+        self._file_name = '/Users/manolo/Documents/projects/musiclib/musiclib.dev.ini'
         self._config_content = self._read()
         pass
 

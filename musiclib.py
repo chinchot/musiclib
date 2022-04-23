@@ -53,12 +53,12 @@ class FMMetadata:
             logging.debug("Total track count is %s" % total_track_count)
             result["number"] = "0/%s" % total_track_count
             for cur_track in self.album["tracks"].get("track"):
-                current_track = StringUtil.create_slug(cur_track.get("name")).upper().encode('ascii', 'ignore')
+                current_track = StringUtil.create_slug(cur_track.get("name")).upper()
                 input_track = StringUtil.create_slug(file_metadata['title']).upper()
                 logging.debug("Comparing track name '%s' to '%s'" % (current_track, input_track))
                 if current_track == input_track:
                     logging.info("Assigning track number %s to track %s" %
-                               (cur_track.get("@attr").get("rank").encode('ascii', 'ignore'), file_metadata['title']))
+                               (cur_track.get("@attr").get("rank"), file_metadata['title']))
                     result["number"] = "%s/%s" % (cur_track.get("@attr").get("rank"), total_track_count)
                     track_number_found = True
                     break
@@ -82,7 +82,7 @@ class FMMetadata:
     def get_metadata_from_api(self, artist, album):
         result = True
         query = {"format": "json", "method": "album.getinfo", "api_key": self.config.fm_api_key,
-                 "artist": artist, "album": album}
+                 "artist": artist, "album": str(album)}
         url_query = urllib.parse.urlencode(query)
         provider = self.config.fm_url
         url = provider + "?" + url_query
@@ -119,7 +119,7 @@ class MediaFile:
         logging.debug("Executed command: %s" % command_executed)
         stream_data = process.communicate()[0]
         exitcode = process.returncode
-        stdout_iterator = str(stream_data).split("\\n")
+        stdout_iterator = stream_data.decode('utf-8').split("\n")
         for line in stdout_iterator:
             logging.debug(line)
             if line.find(" album ") > 0:
