@@ -44,6 +44,20 @@ class FMMetadata:
         compare_album = self.album.get("artist") == artist
         return compare_name and compare_album
 
+    def get_art(self):
+        image_location = None
+        image_list = self.album.get('image')
+        if image_list:
+            for image in image_list:
+                if image.get('size') == 'mega':
+                    image_url = image.get('#text')
+                    response = requests.get(image_url)
+                    image_location = "/users/manolo/Downloads/sample_image.jpg"
+                    file = open(image_location, "wb")
+                    file.write(response.content)
+                    file.close()
+        return image_location
+
     def get_track(self, file_metadata):
         track_number_found = False
         total_track_count = 0
@@ -233,6 +247,24 @@ class ItunesInterface:
             logging.error(stderr_data)
         return error_code
 
+    @staticmethod
+    def add_track_art(track_name, album_name, image_location):
+        command = 'osascript'
+        process = subprocess.Popen([command, 'add image.scpt', album_name, track_name, image_location],
+                                    stdout=PIPE, stderr=PIPE, shell=False)
+        stdout_data, stderr_data = process.communicate()
+        logging.info("Executed command:")
+        error_code = process.returncode
+        logging.debug("Error Code from %s = %s" % (command, error_code))
+        if error_code == 0:
+            logging.info("image added")
+        else:
+            logging.info("STD OUT")
+            logging.info(stdout_data)
+            logging.error("STD ERR")
+            logging.error(stderr_data)
+        return error_code
+
 
 class FileUtility:
 
@@ -308,6 +340,9 @@ class MusicLib:
         if self.itunes.add_file(file_metadata["target_file"]) == 0:
             logging.info("Added file Track %s - '%s' to iTunes" % (track_info["number"],
                                                                    os.path.basename(file_metadata["target_file"])))
+            self.itunes.add_track_art(track_name=track_info.get('name'),
+                                      album_name=self.fm_metadata.album.get('name'),
+                                      image_location=self.fm_metadata.get_art())
         else:
             logging.warning("Song '%s'no added to iTunes" % os.path.basename(file_metadata["target_file"]))
             return False
