@@ -7,6 +7,9 @@ import urllib
 import requests
 import shutil
 import json
+
+from requests.exceptions import MissingSchema
+
 from config import MusicLibConfig
 import subprocess
 from subprocess import Popen, PIPE, STDOUT
@@ -16,13 +19,19 @@ logging.config.fileConfig('logging_config.ini')
 logging.getLogger('musiclib')
 
 
+class NoImageError(Exception):
+    pass
+
+
 class FMMetadata:
 
-    def __init__(self):
+    def __init__(self, api_key, url):
         self.album = {"name": "", "artist": ""}
         self.fm_response = {"album": self.album}
         self.have_metadata = False
-        self.config = MusicLibConfig()
+        self.have_metadata = False
+        self.api_key = api_key
+        self.url = url
         logging.debug("Init FMMetadata")
 
     def get_track_info(self, file_metadata):
@@ -51,7 +60,12 @@ class FMMetadata:
             for image in image_list:
                 if image.get('size') == 'mega':
                     image_url = image.get('#text')
-                    response = requests.get(image_url)
+                    logging.info(f'Getting image from {image_url}')
+                    try:
+                        response = requests.get(image_url)
+                    except MissingSchema as e:
+                        logging.error(e)
+                        raise NoImageError
                     image_location = "/users/manolo/Downloads/sample_image.jpg"
                     file = open(image_location, "wb")
                     file.write(response.content)
@@ -95,10 +109,10 @@ class FMMetadata:
 
     def get_metadata_from_api(self, artist, album):
         result = True
-        query = {"format": "json", "method": "album.getinfo", "api_key": self.config.fm_api_key,
+        query = {"format": "json", "method": "album.getinfo", "api_key": self.api_key,
                  "artist": artist, "album": str(album)}
         url_query = urllib.parse.urlencode(query)
-        provider = self.config.fm_url
+        provider = self.url
         url = provider + "?" + url_query
         try:
             logging.info("Acquiring metadata from: %s" % url)
@@ -313,7 +327,8 @@ class MusicLib:
         logging.info("Initializing MusicLib")
         self.fm_metadata = {}
         self.fm_album = {}
-        self.fm_metadata = FMMetadata()
+        self.config = MusicLibConfig()
+        self.fm_metadata = FMMetadata(api_key=self.config.fm_api_key, url=self.config.fm_url)
         self.media_file = MediaFile()
         self.music_file = FileUtility()
         self.itunes = ItunesInterface()
@@ -335,17 +350,24 @@ class MusicLib:
             if self.media_file.move() != 0:
                 return False
         else:
-            if self.media_file.move_with_new_metadata( track_info) != 0:
+            if self.media_file.move_with_new_metadata(track_info) != 0:
                 return False
-        if self.itunes.add_file(file_metadata["target_file"]) == 0:
-            logging.info("Added file Track %s - '%s' to iTunes" % (track_info["number"],
-                                                                   os.path.basename(file_metadata["target_file"])))
-            self.itunes.add_track_art(track_name=track_info.get('name'),
-                                      album_name=self.fm_metadata.album.get('name'),
-                                      image_location=self.fm_metadata.get_art())
+        if self.config.add_music_indicator:
+            if self.itunes.add_file(file_metadata["target_file"]) == 0:
+                logging.info("Added file Track %s - '%s' to iTunes" % (track_info["number"],
+                                                                       os.path.basename(file_metadata["target_file"])))
+                try:
+                    art_location = self.fm_metadata.get_art()
+                    self.itunes.add_track_art(track_name=track_info.get('name'),
+                                              album_name=self.fm_metadata.album.get('name'),
+                                              image_location=art_location)
+                except NoImageError:
+                    logging.error('No image to be added')
+            else:
+                logging.warning("Song '%s'no added to iTunes" % os.path.basename(file_metadata["target_file"]))
+                return False
         else:
-            logging.warning("Song '%s'no added to iTunes" % os.path.basename(file_metadata["target_file"]))
-            return False
+            logging.warning("Add song indicator is off. Song '%s'no added to iTunes" % os.path.basename(file_metadata["target_file"]))
         return True
 
     def do_file(self, file_name):
