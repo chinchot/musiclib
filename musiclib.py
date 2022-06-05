@@ -7,9 +7,7 @@ import urllib
 import requests
 import shutil
 import json
-
 from requests.exceptions import MissingSchema
-
 from config import MusicLibConfig
 import subprocess
 from subprocess import Popen, PIPE, STDOUT
@@ -164,8 +162,7 @@ class MediaFile:
             self.metadata["alt_artist"] = StringUtil.create_slug(self.metadata["artist"])
             self.metadata["alt_title"] = StringUtil.create_slug(self.metadata["title"])
             self.metadata["target_directory"] = os.path.join(os.path.dirname(file_name), "..",
-                                                             "Processed", self.metadata["alt_artist"],
-                                                             self.metadata["alt_album"])
+                                                             "Processed", self.metadata["alt_album"])
             self.metadata["target_file"] = os.path.join(self.metadata["target_directory"], os.path.basename(file_name))
         logging.debug("get_metadata = %s" % self.metadata)
         return self.metadata
@@ -203,22 +200,27 @@ class MediaFile:
         logging.debug("move error code = %s" % error_code)
         return error_code
 
-    def move_with_new_metadata(self, track_info):
+    def _build_add_metadata_command(self, track_info, album_compilation_indicator):
+        command = list()
+        command.extend([self.ffmpeg_command, '-y'])
+        command.extend(['-i', f'{self.metadata["source_file"]}'])
+        command.extend(['-codec', 'copy'])
+        command.extend(['-metadata', f'track={track_info["number"]}']),
+        command.extend(['-metadata', 'disc=1/1'])
+        if album_compilation_indicator:
+            command.extend(['-metadata', 'compilation=1'])
+        command.append(self.metadata["target_file"])
+        logging.debug(f"Executing command:\n{' '.join(command)}")
+        return command
+
+    def move_with_new_metadata(self, track_info, album_compilation_indicator=False):
         error_code = -1
-        logging.info("Moving file adding metadata.")
+        logging.debug("Moving file adding metadata.")
         if not self.check_before_move():
             return error_code
-        process = subprocess.Popen([self.ffmpeg_command, '-y', '-i', r'%s' % self.metadata["source_file"],
-                                    '-codec', 'copy', '-metadata', 'track=%s' % track_info['number'],
-                                    '-metadata', 'album_artist=%s' % track_info["artist"], '-metadata', 'disc=1/1',
-                                    r'%s' % self.metadata["target_file"]], stdout=PIPE, stderr=PIPE, shell=False)
+        command = self._build_add_metadata_command(track_info, album_compilation_indicator)
+        process = subprocess.Popen(command, stdout=PIPE, stderr=PIPE, shell=False)
         stdout_data, stderr_data = process.communicate()
-        command_executed = ' '.join((self.ffmpeg_command, '-y', '-i', r'%s' % self.metadata["source_file"], '-codec', 'copy',
-                                     '-metadata', 'track=%s' % track_info['number'],
-                                     '-metadata', 'album_artist=%s' % track_info["artist"],
-                                     '-metadata', 'disc=1/1',
-                                     r'%s' % self.metadata["target_file"]))
-        logging.info("Executed command: %s" % command_executed)
         error_code = process.returncode
         logging.debug("Error Code from %s = %s" % (self.ffmpeg_command, error_code))
         if error_code == 0:
@@ -229,8 +231,8 @@ class MediaFile:
                 logging.warning("Sorry but was not able to delete file %s" % self.metadata["source_file"])
                 pass
         else:
-            logging.info("STD OUT")
-            logging.info(stdout_data)
+            logging.debug("STD OUT")
+            logging.debug(stdout_data)
             logging.error("STD ERR")
             logging.error(stderr_data)
         return error_code
@@ -350,7 +352,7 @@ class MusicLib:
             if self.media_file.move() != 0:
                 return False
         else:
-            if self.media_file.move_with_new_metadata(track_info) != 0:
+            if self.media_file.move_with_new_metadata(track_info, self.config.album_compilation_indicator) != 0:
                 return False
         if self.config.add_music_indicator:
             if self.itunes.add_file(file_metadata["target_file"]) == 0:

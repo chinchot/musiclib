@@ -5,7 +5,7 @@ class MusicLibConfig:
     def __init__(self):
         self._file_name = '/Users/manolo/Documents/projects/musiclib/musiclib.dev.ini'
         self._config_content = self._read()
-        self._default_options = {'add_music': True}
+        self._default_options = {'add_music': True, 'album_compilation': False}
 
     def _read(self):
         with open(self._file_name) as file_handler:
@@ -23,3 +23,7 @@ class MusicLibConfig:
     @property
     def add_music_indicator(self):
         return self._config_content.get('options', self._default_options).get('add_music')
+
+    @property
+    def album_compilation_indicator(self):
+        return self._config_content.get('options', self._default_options).get('album_compilation')
