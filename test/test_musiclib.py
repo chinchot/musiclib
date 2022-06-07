@@ -44,7 +44,7 @@ class TestStringUtility(unittest.TestCase):
         self.assertEqual(self.string_utility.create_slug('file_name.txt'), 'file_name.txt')
 
     def test_change_in_file_name(self):
-        self.assertEqual(self.string_utility.create_slug('file#name.txt'), 'filename.txt')
+        self.assertEqual(self.string_utility.create_slug('file.py#name.txt'), 'filename.txt')
 
 
 class TestFileUtility(unittest.TestCase):

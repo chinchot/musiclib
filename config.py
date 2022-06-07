@@ -1,9 +1,16 @@
 import yaml
+import os
+import logging.config
+
+logging.config.fileConfig('logging_config.ini')
+log = logging.getLogger('music')
 
 
 class MusicLibConfig:
     def __init__(self):
-        self._file_name = '/Users/manolo/Documents/projects/musiclib/musiclib.dev.ini'
+        current_dir = os.getcwd()
+        log.debug(f'Current working directory is {current_dir}')
+        self._file_name = os.path.join(current_dir, 'musiclib.dev.ini')
         self._config_content = self._read()
         self._default_options = {'add_music': True, 'album_compilation': False}
 

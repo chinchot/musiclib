@@ -93,3 +93,4 @@ ENV/
 *.dev.cfg
 *.dev.ini
 */.pytest_cache/*
+.DS_Store
