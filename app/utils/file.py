@@ -11,18 +11,19 @@ class FileUtility:
         pass
 
     @staticmethod
-    def create_directory(dir_name="."):
+    def create_directory(dir_name=".") -> None:
         if os.path.exists(dir_name):
-            log.debug("Directory %s already exists" % dir_name)
+            log.debug(f"Directory %s already exists {dir_name}")
             if not os.path.isdir(dir_name):
-                log.error(f"trying to create a directory where a file name with the same exists already: {dir_name}")
-                return False
+                raise ErrorNotAbleToCreateDir(f"Trying to create a directory where a file name with the same exists"
+                                              f" already: {dir_name}")
         else:
             log.debug("Creating directory: %s" % dir_name)
             try:
                 os.makedirs(dir_name)
             except IOError:
-                log.error("Were not able to create directory %s" % dir_name)
-                return False
-        return True
+                raise ErrorNotAbleToCreateDir(f"Were not able to create directory {dir_name}")
 
+
+class ErrorNotAbleToCreateDir(Exception):
+    pass

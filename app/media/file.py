@@ -3,7 +3,7 @@ import shutil
 import subprocess
 from subprocess import PIPE, STDOUT
 from app.utils.string import StringUtil
-from app.utils.file import FileUtility
+from app.utils.file import FileUtility, ErrorNotAbleToCreateDir
 import logging.config
 
 logging.config.fileConfig('logging_config.ini')
@@ -14,7 +14,7 @@ class MediaFile:
 
     def __init__(self):
         self.ffmpeg_command = "ffmpeg"
-        self.metadata = {}
+        self.metadata = dict()
         self.file_util = FileUtility()
         log.debug("MediaFile initialized")
 
@@ -49,15 +49,19 @@ class MediaFile:
         log.debug("get_metadata = %s" % self.metadata)
         return self.metadata
 
+    @property
     def valid_metadata(self):
         return self.metadata["exit_code"] == 0
 
+    @property
+    def target_directory(self):
+        return self.metadata.get('target_directory')
+
     def check_before_move(self):
-        log.debug("check_before_move (%s, %s)" % (self.metadata["source_file"], self.metadata["target_directory"]))
+        log.debug(f'Checking file exists to move from'
+                  f' \'{self.metadata["source_file"]}\' to \'{self.metadata["target_directory"]}\'')
         if not os.path.isfile(self.metadata["source_file"]):
-            log.error("The source file %s does not exists." % self.metadata["source_file"])
-            return False
-        return self.file_util.create_directory(self.metadata["target_directory"])
+            raise ErrorFileMissing(f'The source file {self.metadata["source_file"]} does not exists.')
 
     @staticmethod
     def target_file(source_file_name, target_directory):
@@ -66,9 +70,13 @@ class MediaFile:
     def move(self):
         error_code = 0
         log.debug("Moving file without adding metadata.")
-        if not self.check_before_move():
+        try:
+            self.check_before_move()
+        except (ErrorFileMissing, ErrorNotAbleToCreateDir) as e:
+            log.error(e)
             error_code = -1
             return error_code
+        self.file_util.create_directory(self.metadata["target_directory"])
         log.debug("target_file = %s" % self.metadata["target_file"])
         # copy the file with the same metadata to the right directory
         try:
@@ -98,7 +106,11 @@ class MediaFile:
     def move_with_new_metadata(self, track_info, album_compilation_indicator=False):
         error_code = -1
         log.debug("Moving file adding metadata.")
-        if not self.check_before_move():
+        try:
+            self.check_before_move()
+            self.file_util.create_directory(self.metadata["target_directory"])
+        except (ErrorFileMissing, ErrorNotAbleToCreateDir) as e:
+            log.error(e)
             return error_code
         command = self._build_add_metadata_command(track_info, album_compilation_indicator)
         process = subprocess.Popen(command, stdout=PIPE, stderr=PIPE, shell=False)
@@ -119,3 +131,6 @@ class MediaFile:
             log.error(stderr_data)
         return error_code
 
+
+class ErrorFileMissing(Exception):
+    pass

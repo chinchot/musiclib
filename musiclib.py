@@ -3,7 +3,7 @@ import sys
 from app.fm_metadata.metadata import FMMetadata, NoImageError
 from app.media.file import MediaFile
 from app.media.music import ItunesInterface
-from app.utils.file import FileUtility
+from app.utils.file import FileUtility, ErrorNotAbleToCreateDir
 from config import MusicLibConfig
 import logging.config
 
@@ -24,28 +24,34 @@ class MusicLib:
         self.itunes = ItunesInterface()
         log.debug("MusicLib has been initialized")
 
-    def process_file(self, file_name):
-        log.debug("Process File: %s" % file_name)
+    @staticmethod
+    def check_file_exists(file_name):
         if not os.path.isfile(file_name):
-            log.error("File %s does not exists" % file_name)
-            return False
+            raise ErrorDuringProcessFile(f'File {file_name} does not exists.')
+
+    def get_metadata(self, file_name):
         file_metadata = self.media_file.get_metadata(file_name)
-        if not self.media_file.valid_metadata():
-            log.error("Couldn't get the metadata from file: %s" % file_name)
-            return False
+        if not self.media_file.valid_metadata:
+            raise ErrorDuringProcessFile(f'Could not get the metadata from file: {file_name}')
+        return file_metadata
+
+    def process_file(self, file_name) -> None:
+        log.debug("Process File: %s" % file_name)
+        MusicLib.check_file_exists(file_name)
+        file_metadata = self.get_metadata(file_name)
         FileUtility.create_directory(dir_name=file_metadata["target_directory"])
         track_info = self.fm_metadata.get_track_info(file_metadata)
         log.debug("Moving %s to %s" % (file_name, file_metadata["target_directory"]))
         if track_info.get("name") == "":
             if self.media_file.move() != 0:
-                return False
+                raise ErrorDuringProcessFile('Error while trying to move the file to new location.')
         else:
             if self.media_file.move_with_new_metadata(track_info, self.config.album_compilation_indicator) != 0:
-                return False
+                raise ErrorDuringProcessFile('Error while trying to move the file with metadata to new location.')
         if self.config.add_music_indicator:
             if self.itunes.add_file(file_metadata["target_file"]) == 0:
                 log.debug("Added file Track %s - '%s' to iTunes" % (track_info["number"],
-                                                                       os.path.basename(file_metadata["target_file"])))
+                                                                    os.path.basename(file_metadata["target_file"])))
                 try:
                     art_location = self.fm_metadata.get_art()
                     self.itunes.add_track_art(track_name=track_info.get('name'),
@@ -54,21 +60,25 @@ class MusicLib:
                 except NoImageError:
                     log.error('No image to be added')
             else:
-                log.warning("Song '%s'no added to iTunes" % os.path.basename(file_metadata["target_file"]))
-                return False
+                raise ErrorDuringProcessFile("Song '%s'no added to iTunes" % os.path.basename(file_metadata["target_file"]))
         else:
             log.warning("Add song indicator is off. Song '%s'no added to iTunes" % os.path.basename(file_metadata["target_file"]))
-        return True
 
     def do_file(self, file_name):
-        error_code = 1
         log.debug("do_file %s" % file_name)
-        if self.process_file(file_name):
+        try:
+            self.process_file(file_name)
             log.info("Everything worked as expected. Congratulations!")
             error_code = 0
-        else:
+        except (ErrorDuringProcessFile, Exception) as e:
+            log.error(e)
             log.error("Something went wrong. Check your logs")
+            error_code = 1
         return error_code
+
+
+class ErrorDuringProcessFile(Exception):
+    pass
 
 
 def main():

@@ -57,6 +57,8 @@ class FMMetadata:
                     file = open(image_location, "wb")
                     file.write(response.content)
                     file.close()
+        if not image_location:
+            raise NoImageError
         return image_location
 
     def get_track(self, file_metadata):
