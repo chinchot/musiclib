@@ -1,0 +1,6 @@
+add image.scpt
+config.py
+logging_config.ini
+monitor.py
+musiclib.dev.ini
+musiclib.py
