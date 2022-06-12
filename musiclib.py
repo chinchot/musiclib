@@ -36,7 +36,6 @@ class MusicLib:
         log.debug("Process File: %s" % file_name)
         MusicLib.check_file_exists(file_name)
         self.get_metadata(file_name)
-        FileUtility.create_directory(dir_name=self.media_file.target_directory)
         self.media_file.move_file(self.config.album_compilation_indicator)
         if self.config.add_music_indicator:
             if self.itunes.add_file(self.media_file.target_file) == 0:
