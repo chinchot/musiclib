@@ -3,6 +3,12 @@ import mock
 import subprocess
 from app.media.file import MediaFile
 
+expected_metadata = {'title': 'Drones', 'artist': 'Muse', 'album': 'Drones', 'exit_code': 0,
+                     'source_file': 'fixtures/music_file/Muse - Drones.m4a', 'alt_album': 'Drones',
+                     'alt_artist': 'Muse', 'alt_title': 'Drones',
+                     'target_directory': 'fixtures/music_file/../Processed/Drones',
+                     'target_file': 'fixtures/music_file/../Processed/Drones/Muse - Drones.m4a'}
+
 
 class TestMediaFile(unittest.TestCase):
     def setUp(self):

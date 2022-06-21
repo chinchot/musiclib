@@ -38,17 +38,16 @@ class TestMusicLib(unittest.TestCase):
                           file_name='fixtures/music_file/Muse - Drones.tmp')
 
     def test_get_metadata(self):
-        expected_metadata = {'title': 'Drones', 'artist': 'Muse', 'album': 'Drones', 'exit_code': 0,
-                             'source_file': 'fixtures/music_file/Muse - Drones.m4a', 'alt_album': 'Drones',
-                             'alt_artist': 'Muse', 'alt_title': 'Drones',
-                             'target_directory': 'fixtures/music_file/../Processed/Drones',
-                             'target_file': 'fixtures/music_file/../Processed/Drones/Muse - Drones.m4a'}
-        self.assertEqual(expected_metadata, self.music_lib.get_metadata(
-            file_name='fixtures/music_file/Muse - Drones.m4a'))
+        self.music_lib.get_metadata(file_name='fixtures/music_file/Muse - Drones.m4a')
+        self.assertTrue(self.music_lib.media_file.valid_metadata)
 
     def test_get_metadata_file_do_not_exists(self):
         self.assertRaises(ErrorDuringProcessFile, self.music_lib.get_metadata,
                           file_name='fixtures/music_file/Muse - Drones.tmp')
+
+    def test_add_album_art(self):
+        self.music_lib.get_metadata(file_name='fixtures/music_file/Muse - Drones.m4a')
+        self.music_lib.add_album_art()
 
 
 if __name__ == '__main__':

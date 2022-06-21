@@ -23,11 +23,11 @@ class FMMetadata:
 
     def get_track_info(self, file_metadata):
         log.info("Obtaining track info for: artist=%s album=%s track=%s"
-                   % (file_metadata['artist'], file_metadata['album'], file_metadata['title']))
+                   % (file_metadata.get('artist'), file_metadata.get('album'), file_metadata.get('title')))
         result = {"name": ""}
-        if not self.is_album_current(file_metadata['artist'], file_metadata['album']):
+        if not self.is_album_current(file_metadata.get('artist'), file_metadata.get('album')):
             log.debug("Album not current picking up metadata from service")
-            self.have_metadata = self.get_metadata_from_api(file_metadata['artist'], file_metadata['album'])
+            self.have_metadata = self.get_metadata_from_api(file_metadata.get('artist'), file_metadata.get('album'))
         if self.have_metadata:
             log.debug("Metadata is already home, we can try to match the track name.")
             result = self.get_track(file_metadata)
@@ -64,7 +64,7 @@ class FMMetadata:
     def get_track(self, file_metadata):
         track_number_found = False
         total_track_count = 0
-        result = {"name": file_metadata['title'], "artist": self.album.get("artist")}
+        result = {"name": file_metadata.get('title'), "artist": self.album.get("artist")}
         try:
             total_track_count = str(len(self.album["tracks"].get("track")))
             log.debug("Total track count is %s" % total_track_count)
@@ -111,8 +111,11 @@ class FMMetadata:
         except requests.exceptions.HTTPError:
             log.warning("Sadly No metadata available from the provider %s" % provider)
             result = False
-
-        self.album = self.fm_response.get("album")
+        if not payload.ok:
+            log.warning(f"Provider says \"{payload.reason}\" for album query.")
+            result = False
+        else:
+            self.album = self.fm_response.get("album")
         if self.album is None:
             result = False
         log.debug("Album name from service: %s" % self.album)

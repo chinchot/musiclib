@@ -53,8 +53,9 @@ class MediaFile:
                                                              "Processed", self.metadata["alt_album"])
             self.metadata["target_file"] = os.path.join(self.metadata["target_directory"], os.path.basename(file_name))
         log.debug("get_metadata = %s" % self.metadata)
-        FileUtility.create_directory(dir_name=self.target_directory)
-        self.get_track_info()
+        if self.target_directory:
+            FileUtility.create_directory(dir_name=self.target_directory)
+            self.get_track_info()
 
     @property
     def valid_metadata(self):
