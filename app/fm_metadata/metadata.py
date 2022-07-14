@@ -5,6 +5,7 @@ import requests
 import json
 from requests.exceptions import MissingSchema
 from app.utils.string import StringUtil
+from config import MusicLibConfig
 import logging.config
 
 log = logging.getLogger('music')
@@ -12,13 +13,14 @@ log = logging.getLogger('music')
 
 class FMMetadata:
 
-    def __init__(self, api_key, url):
+    def __init__(self, api_key=None, url=None):
         self.album = {"name": "", "artist": ""}
         self.fm_response = {"album": self.album}
         self.have_metadata = False
         self.have_metadata = False
-        self.api_key = api_key
-        self.url = url
+        self.config = MusicLibConfig()
+        self.api_key = self.config.fm_api_key
+        self.url = self.config.fm_url
         log.debug("Init FMMetadata")
 
     def get_track_info(self, file_metadata):
@@ -98,6 +100,18 @@ class FMMetadata:
 
     def get_metadata_from_api(self, artist, album):
         result = True
+        try:
+            self.fm_response = self.get_payload_from_api(artist, album)
+        except AlbumNotFound as e:
+            log.error(e)
+            return False
+        self.album = self.fm_response.get("album")
+        if self.album is None:
+            result = False
+        log.debug("Album name from service: %s" % self.album)
+        return result
+
+    def get_payload_from_api(self, artist, album):
         query = {"format": "json", "method": "album.getinfo", "api_key": self.api_key,
                  "artist": artist, "album": str(album)}
         url_query = urllib.parse.urlencode(query)
@@ -107,20 +121,19 @@ class FMMetadata:
             log.debug("Acquiring metadata from: %s" % url)
             payload = requests.get(url)
             log.debug("Data gotten from service")
-            self.fm_response = json.loads(payload.content)
+            fm_response = json.loads(payload.content)
         except requests.exceptions.HTTPError:
             log.warning("Sadly No metadata available from the provider %s" % provider)
-            result = False
+            raise AlbumNotFound()
         if not payload.ok:
             log.warning(f"Provider says \"{payload.reason}\" for album query.")
-            result = False
-        else:
-            self.album = self.fm_response.get("album")
-        if self.album is None:
-            result = False
-        log.debug("Album name from service: %s" % self.album)
-        return result
+            raise AlbumNotFound()
+        return fm_response
 
 
 class NoImageError(Exception):
+    pass
+
+
+class AlbumNotFound(Exception):
     pass

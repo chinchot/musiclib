@@ -1,7 +1,7 @@
 import os
 import sys
 from app.media.file import MediaFile
-from app.media.music import ItunesInterface
+from app.media.music import ItunesInterface, ErrorExecuteAppleScript
 from app.media.file import NoImageError
 from config import MusicLibConfig
 import logging.config
@@ -16,7 +16,7 @@ class MusicLib:
         log.info("Initializing Music Library")
         self.fm_album = {}
         self.config = MusicLibConfig()
-        self.media_file = MediaFile(api_key=self.config.fm_api_key, url=self.config.fm_url)
+        self.media_file = MediaFile()
         self.itunes = ItunesInterface()
         log.debug("Music Library has been initialized")
 
@@ -41,15 +41,15 @@ class MusicLib:
 
     def add_file_to_music(self):
         if self.config.add_music_indicator:
-            if self.itunes.add_file(self.media_file.target_file) == 0:
+            try:
+                self.itunes.add_file(self.media_file.target_file)
                 log.debug(f"Added file Track {self.media_file.track_number} - '{self.media_file.target_file}' to Music")
                 self.add_album_art()
-            else:
+            except ErrorExecuteAppleScript:
+                log.warning(f"Add song indicator is off. Song '{os.path.basename(self.media_file.target_file)}' "
+                            f"not added to Music")
                 raise ErrorDuringProcessFile(f"Song '{os.path.basename(self.media_file.target_file)}' not added to"
                                              f" Music")
-        else:
-            log.warning(f"Add song indicator is off. Song '{os.path.basename(self.media_file.target_file)}' "
-                        f"not added to Music")
 
     def process_file(self, file_name) -> None:
         log.debug("Process File: %s" % file_name)

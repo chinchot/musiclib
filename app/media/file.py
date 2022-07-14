@@ -13,18 +13,18 @@ log = logging.getLogger('music')
 
 class MediaFile:
 
-    def __init__(self, api_key, url):
+    def __init__(self):
         self.ffmpeg_command = "ffmpeg"
         self.metadata = dict()
         self.track_info = dict()
         self.file_util = FileUtility()
-        self.fm_metadata = FMMetadata(api_key=api_key, url=url)
+        self.fm_metadata = FMMetadata()
         log.debug("MediaFile initialized")
 
     def get_track_info(self):
         self.track_info = self.fm_metadata.get_track_info(self.metadata)
 
-    def get_metadata(self, file_name):
+    def get_metadata_from_file(self, file_name):
         log.info("Getting metadata from file %s." % file_name)
         self.metadata = {}
         process = subprocess.Popen([self.ffmpeg_command, "-y", "-i", file_name, "-f", "ffmetadata", "/dev/null"],
@@ -53,6 +53,9 @@ class MediaFile:
                                                              "Processed", self.metadata["alt_album"])
             self.metadata["target_file"] = os.path.join(self.metadata["target_directory"], os.path.basename(file_name))
         log.debug("get_metadata = %s" % self.metadata)
+
+    def get_metadata(self, file_name):
+        self.get_metadata_from_file(file_name)
         if self.target_directory:
             FileUtility.create_directory(dir_name=self.target_directory)
             self.get_track_info()
@@ -80,6 +83,18 @@ class MediaFile:
     @property
     def album_name(self):
         return self.fm_metadata.album.get('name')
+
+    @property
+    def metadata_album_name(self):
+        return self.metadata.get('album')
+
+    @property
+    def metadata_artist_name(self):
+        return self.metadata.get('artist')
+
+    @property
+    def metadata_track_name(self):
+        return self.metadata.get('title')
 
     @property
     def target_directory(self):
@@ -125,18 +140,43 @@ class MediaFile:
         log.debug("move error code = %s" % error_code)
         return error_code
 
-    def _build_add_metadata_command(self, album_compilation_indicator):
+    def _build_add_metadata_command(self, input_file, track_number, disc, output_file, album_compilation_indicator,
+                                    album_artist=None):
         command = list()
         command.extend([self.ffmpeg_command, '-y'])
-        command.extend(['-i', f'{self.metadata["source_file"]}'])
+        command.extend(['-i', f'{input_file}'])
         command.extend(['-codec', 'copy'])
-        command.extend(['-metadata', f'track={self.track_info.get("number")}']),
-        command.extend(['-metadata', 'disc=1/1'])
+        command.extend(['-metadata', f'track={track_number}']),
+        command.extend(['-metadata', f'disc={disc}'])
+        if album_artist is not None:
+            command.extend(['-metadata', f'album_artist={album_artist}'])
         if album_compilation_indicator:
             command.extend(['-metadata', 'compilation=1'])
-        command.append(self.metadata["target_file"])
+        command.append(output_file)
         log.debug(f"Executing command:\n{' '.join(command)}")
         return command
+
+    def _execute(self, command):
+        process = subprocess.Popen(command, stdout=PIPE, stderr=PIPE, shell=False)
+        stdout_data, stderr_data = process.communicate()
+        error_code = process.returncode
+        log.debug("Error Code from %s = %s" % (self.ffmpeg_command, error_code))
+        log.debug("STD OUT")
+        log.debug(stdout_data)
+        if error_code != 0:
+            log.error("STD ERR")
+            log.error(stderr_data)
+            raise ErrorExecuteCommand(stderr_data)
+
+    def add_metadata(self, input_file, track_number, disc, album_compilation_indicator, album_artist=None):
+        output_file = os.path.join(os.path.dirname(input_file), 'temp.m4a')
+        command = self._build_add_metadata_command(input_file=input_file,
+                                                   track_number=track_number,
+                                                   disc=disc, output_file=output_file,
+                                                   album_compilation_indicator=album_compilation_indicator,
+                                                   album_artist=album_artist)
+        self._execute(command=command)
+        shutil.move(output_file, input_file)
 
     def move_with_new_metadata(self, album_compilation_indicator):
         error_code = -1
@@ -147,7 +187,10 @@ class MediaFile:
         except (ErrorFileMissing, ErrorNotAbleToCreateDir) as e:
             log.error(e)
             return error_code
-        command = self._build_add_metadata_command(album_compilation_indicator)
+        command = self._build_add_metadata_command(input_file=self.metadata["source_file"],
+                                                   track_number=self.track_info.get("number"),
+                                                   disc='1/1', output_file=self.metadata["target_file"],
+                                                   album_compilation_indicator=album_compilation_indicator)
         process = subprocess.Popen(command, stdout=PIPE, stderr=PIPE, shell=False)
         stdout_data, stderr_data = process.communicate()
         error_code = process.returncode
@@ -172,4 +215,8 @@ class ErrorFileMissing(Exception):
 
 
 class ErrorMovingFile(Exception):
+    pass
+
+
+class ErrorExecuteCommand(Exception):
     pass

@@ -29,7 +29,7 @@ class ItunesInterface:
             log.debug(stdout_data)
             log.error("STD ERR")
             log.error(stderr_data)
-        return error_code
+            raise ErrorExecuteAppleScript(f'Error while executing: {command_executed}')
 
     @staticmethod
     def add_track_art(track_name, album_name, image_location):
@@ -48,3 +48,7 @@ class ItunesInterface:
             log.error("STD ERR")
             log.error(stderr_data)
         return error_code
+
+
+class ErrorExecuteAppleScript(Exception):
+    pass
