@@ -13,7 +13,7 @@ class TestAlbum(unittest.TestCase):
     def test_process_files(self):
         self.assertEqual(self.album._artist_name, 'Muse')
         self.assertEqual(self.album._album_name, 'Drones')
-        self.assertEqual(self.album._track_list, ['Drones'])
+        self.assertEqual('Drones', self.album._track_list.lookup_track_name('Drones').name)
 
     def test_album_name(self):
         self.assertEqual(self.album.album_name, 'Drones')

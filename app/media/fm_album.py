@@ -5,6 +5,7 @@ import requests
 import os
 from requests.exceptions import MissingSchema
 from app.fm_metadata.metadata import FMMetadata
+from app.utils.track import TrackList, Track
 logging.config.fileConfig('logging_config.ini')
 log = logging.getLogger('root')
 
@@ -13,7 +14,7 @@ class FMAlbum(object):
     def __init__(self, album_name, artist_name, disc_splits=None):
         self._album_name = album_name
         self._artist_name = artist_name
-        self._track_list = list()
+        self._track_list = TrackList()
         self._disc_splits = disc_splits
         self._image_location = None
         self._get_metadata()
@@ -83,10 +84,7 @@ class FMAlbum(object):
         return len(self._track_list)
 
     def track_by_name(self, track_name):
-        for track in self._track_list:
-            if track.name.upper() == track_name.upper():
-                return track
-        return None
+        return self._track_list.lookup_track_name(track_name)
 
     @property
     def disc_count(self):
@@ -124,41 +122,6 @@ class FMAlbum(object):
             return self._disc_splits[self.disc_number(track_number)-1]
         else:
             return self.track_count
-
-
-class Track(object):
-    def __init__(self, fm_track):
-        self._set_track_values(fm_track)
-
-    def _set_track_values(self, fm_track):
-        self._name = fm_track.get('name')
-        self._duration = fm_track.get('duration')
-        self._rank = fm_track.get('@attr').get('rank')
-        self._artist = fm_track.get('artist').get('name')
-
-    @property
-    def artist_name(self):
-        return self._artist
-
-    @property
-    def name(self):
-        return self._name
-
-    @property
-    def duration(self):
-        return self._duration
-
-    @property
-    def number(self):
-        return self._rank
-
-    def __repr__(self):
-        track = dict()
-        track['name'] = self.name
-        track['artist_name'] = self.artist_name
-        track['number'] = self.number
-        track['duration'] = self.duration
-        return str(track)
 
 
 class NoImageError(Exception):

@@ -3,7 +3,7 @@
 import logging
 import os
 from app.media.file import MediaFile
-from app.utils.string import StringUtil
+from app.utils.track import TrackList, Track
 logging.config.fileConfig('logging_config.ini')
 log = logging.getLogger('root')
 
@@ -14,7 +14,7 @@ class Album(object):
         self._media_file = MediaFile()
         self._album_name = None
         self._artist_name = None
-        self._track_list = list()
+        self._track_list = TrackList()
         self._artist_name_is_same_in_all_tracks = True
         self._album_name_is_same_in_all_tracks = True
         self._process_files()
@@ -27,9 +27,9 @@ class Album(object):
                 self._album_name = self._media_file.metadata_album_name
                 self._set_artist_name()
                 track = dict()
-                track['track_name'] = self._media_file.metadata_track_name
-                track['track_location'] = track_location
-                self._track_list.append(track)
+                track['name'] = self._media_file.metadata_track_name
+                track['location'] = track_location
+                self._track_list.append(Track(track))
 
     def _set_artist_name(self):
         if self._artist_name is None:
@@ -58,14 +58,4 @@ class Album(object):
         return None
 
     def track_by_name(self, track_name, match_ratio=100):
-        return self._lookup_track_by_name(track_name=track_name, return_token='track_name', match_ratio=match_ratio)
-
-    def track_location_by_name(self, track_name, match_ratio=100):
-        return self._lookup_track_by_name(track_name=track_name, return_token='track_location', match_ratio=match_ratio)
-
-    def _lookup_track_by_name(self, track_name, return_token, match_ratio=100):
-        for track in self._track_list:
-            result_track_name = track.get('track_name')
-            if StringUtil.fuzzy_match(result_track_name, track_name, match_ratio=match_ratio):
-                return track.get(return_token)
-        return None
+        return self._track_list.lookup_track_name(track_name, match_ratio)
