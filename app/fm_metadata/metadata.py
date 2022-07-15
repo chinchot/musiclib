@@ -47,20 +47,23 @@ class FMMetadata:
         image_list = self.album.get('image')
         if image_list:
             for image in image_list:
-                if image.get('size') == 'mega':
-                    image_url = image.get('#text')
-                    log.debug(f'Getting image from {image_url}')
-                    try:
-                        response = requests.get(image_url)
-                    except MissingSchema as e:
-                        log.error(e)
-                        raise NoImageError
-                    image_location = "/users/manolo/Downloads/sample_image.jpg"
-                    file = open(image_location, "wb")
-                    file.write(response.content)
-                    file.close()
-        if not image_location:
-            raise NoImageError
+                image_location = FMMetadata._get_image(image)
+                if image_location is not None:
+                    break
+        return image_location
+
+    @staticmethod
+    def _get_image(image):
+        image_url = image.get('#text')
+        log.debug(f'Getting image from {image_url}')
+        try:
+            response = requests.get(image_url)
+        except MissingSchema as e:
+            log.error(e)
+            return None
+        image_location = os.path.join(os.getcwd(), 'image.jpg')
+        with open(image_location, "wb") as file:
+            file.write(response.content)
         return image_location
 
     def get_track(self, file_metadata):
@@ -129,10 +132,6 @@ class FMMetadata:
             log.warning(f"Provider says \"{payload.reason}\" for album query.")
             raise AlbumNotFound()
         return fm_response
-
-
-class NoImageError(Exception):
-    pass
 
 
 class AlbumNotFound(Exception):

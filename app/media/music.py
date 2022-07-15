@@ -33,13 +33,17 @@ class ItunesInterface:
 
     @staticmethod
     def add_track_art(track_name, album_name, image_location):
-        command = 'osascript'
-        process = subprocess.Popen([command, 'add image.scpt', album_name, track_name, image_location],
-                                   stdout=PIPE, stderr=PIPE, shell=False)
-        stdout_data, stderr_data = process.communicate()
-        log.debug("Executed command:")
-        error_code = process.returncode
-        log.debug("Error Code from %s = %s" % (command, error_code))
+        max_tries = 5
+        for try_number in range(1, max_tries):
+            error_code = ItunesInterface._add_track_art(track_name, album_name, image_location)
+            if error_code == 0:
+                break
+        return error_code
+
+    @staticmethod
+    def _add_track_art(track_name, album_name, image_location):
+        error_code, stdout_data, stderr_data = ItunesInterface.add_track_art_script(track_name, album_name,
+                                                                                    image_location)
         if error_code == 0:
             log.debug("image added")
         else:
@@ -48,6 +52,15 @@ class ItunesInterface:
             log.error("STD ERR")
             log.error(stderr_data)
         return error_code
+
+    @staticmethod
+    def add_track_art_script(album_name, track_name, image_location):
+        command = 'osascript'
+        process = subprocess.Popen([command, 'add image.scpt', album_name, track_name, image_location],
+                                   stdout=PIPE, stderr=PIPE, shell=False)
+        stdout_data, stderr_data = process.communicate()
+        log.debug("Execution result code from %s = %s" % (command, process.returncode))
+        return process.returncode, stdout_data, stderr_data
 
 
 class ErrorExecuteAppleScript(Exception):

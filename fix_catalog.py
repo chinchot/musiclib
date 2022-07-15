@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 import argparse
 import logging.config
-from app.media.fm_album import FMAlbum
+from app.media.fm_album import FMAlbum, NoImageError
 from app.media.album import Album
 from app.media.file import MediaFile
 from app.media.music import ItunesInterface, ErrorExecuteAppleScript
@@ -22,14 +22,14 @@ class FixCatalog(object):
         self._match_ratio = arguments.match_ratio
 
     def set_album(self, album_name):
-        if album_name is not None:
+        if album_name is not None and self._album_name is None:
             self._album_name = album_name
         elif self._album_name is None:
             raise ErrorValueNotDetermined('No Album name could be determined, and no override was provided '
                                           'in argument --album')
 
     def set_artist(self, artist_name):
-        if artist_name is not None:
+        if artist_name is not None and self._artist_name is None:
             self._artist_name = artist_name
         elif self._artist_name is None:
             raise ErrorValueNotDetermined('No Artist name could be determined, and no override was provided '
@@ -61,11 +61,15 @@ class FixCatalog(object):
                                         album_compilation_indicator=self._album_compilation_indicator,
                                         album_artist=fm_album.artist_name)
                 try:
-                    #music.add_file(file_location)
-                    pass
+                    music.add_file(file_location)
+                    image_location = fm_album.image_location()
+                    music.add_track_art(track_name=track.name, album_name=fm_album.album_name,
+                                        image_location=image_location)
                 except ErrorExecuteAppleScript as e:
                     log.error(e)
                     exit(1)
+                except NoImageError:
+                    log.warning('No image added')
 
 
 def parse_args():

@@ -1,6 +1,9 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 import logging
+import requests
+import os
+from requests.exceptions import MissingSchema
 from app.fm_metadata.metadata import FMMetadata
 logging.config.fileConfig('logging_config.ini')
 log = logging.getLogger('root')
@@ -12,6 +15,7 @@ class FMAlbum(object):
         self._artist_name = artist_name
         self._track_list = list()
         self._disc_splits = disc_splits
+        self._image_location = None
         self._get_metadata()
 
     def _get_metadata(self):
@@ -19,6 +23,47 @@ class FMAlbum(object):
         payload = fm_metadata.get_payload_from_api(artist=self._artist_name, album=self._album_name)
         for track in payload['album']['tracks']['track']:
             self._track_list.append(Track(track))
+        self._image_location = FMAlbum._get_art(payload)
+
+    def image_location(self):
+        if self._image_location is not None:
+            return self._image_location
+        raise NoImageError('The current album has no art.')
+
+    @staticmethod
+    def _get_art(payload):
+        image_location = None
+        image_list = payload['album'].get('image')
+        if image_list:
+            for image_size in ['mega', 'extralarge', 'large', 'medium', 'small']:
+                image_location = FMAlbum._get_image(image_list, image_size)
+                if image_location is not None:
+                    break
+        return image_location
+
+    @staticmethod
+    def _get_image_by_size(image_list, size):
+        for image in image_list:
+            if image.get('size') == size:
+                return image
+        return {'#text': ''}
+
+    @staticmethod
+    def _get_image(image_list, image_size):
+        image = FMAlbum._get_image_by_size(image_list, image_size)
+        image_url = image.get('#text')
+        if image_url is None or image_url == '':
+            return None
+        log.debug(f'Getting image from {image_url}')
+        try:
+            response = requests.get(image_url)
+        except MissingSchema as e:
+            log.error(e)
+            return None
+        image_location = os.path.join(os.getcwd(), 'image.jpg')
+        with open(image_location, "wb") as file:
+            file.write(response.content)
+        return image_location
 
     @property
     def album_name(self):
@@ -52,12 +97,6 @@ class FMAlbum(object):
 
     def _is_multi_disc(self):
         return self.disc_count > 1
-
-    def disc_total_track_number(self, track_number, default_total_track_number):
-        if self._is_multi_disc():
-            return self._disc_splits[self.disc_number(track_number)-1]
-        else:
-            return default_total_track_number
 
     def disc_number(self, track_number):
         disc_number = 0
@@ -122,6 +161,10 @@ class Track(object):
         return str(track)
 
 
+class NoImageError(Exception):
+    pass
+
+
 if __name__ == "__main__":
-    album = FMAlbum(album_name='Buddha Bar XI', artist_name='Buddha Bar')
+    album = FMAlbum(album_name='Drones', artist_name='Muse')
     print(album)

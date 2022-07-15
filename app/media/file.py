@@ -3,7 +3,7 @@ import shutil
 import subprocess
 from subprocess import PIPE, STDOUT
 from app.utils.string import StringUtil
-from app.fm_metadata.metadata import FMMetadata, NoImageError
+from app.fm_metadata.metadata import FMMetadata
 from app.utils.file import FileUtility, ErrorNotAbleToCreateDir
 import logging.config
 

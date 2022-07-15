@@ -1,11 +1,10 @@
 # -*- coding: latin-1 -*-
 import unittest
-import mock
+from mock import patch
 from app.media.music import ItunesInterface
 import subprocess
 
 
-@mock.patch.object(subprocess, 'Popen', autospec=True)
 class TestItunesInterface(unittest.TestCase):
     def setUp(self):
         self.itunes_interface = ItunesInterface()
@@ -26,6 +25,18 @@ class TestItunesInterface(unittest.TestCase):
         mock_popen.return_value = process_mock
         error_code = self.itunes_interface.add_file('file_name')
         self.assertEqual(error_code, error_code)
+
+    @patch('app.media.music.ItunesInterface.add_track_art_script')
+    def test_add_track_art(self, mock_script):
+        mock_script.return_value = (0, b'', b'')
+        self.assertEqual(0, self.itunes_interface.add_track_art(track_name='dummy',
+                                                                album_name='dummy', image_location='/'))
+
+    @patch('app.media.music.ItunesInterface.add_track_art_script')
+    def test_add_track_art_fail(self, mock_script):
+        mock_script.return_value = (1, b'', b'ERROR')
+        self.assertEqual(1, self.itunes_interface.add_track_art(track_name='dummy',
+                                                                album_name='dummy', image_location='/'))
 
 
 if __name__ == '__main__':

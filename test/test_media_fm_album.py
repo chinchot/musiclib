@@ -1,12 +1,13 @@
 # -*- coding: latin-1 -*-
 import unittest
 import json
+import os
 from mock import patch
-from app.media.fm_album import FMAlbum
+from app.media.fm_album import FMAlbum, NoImageError
 
 
-def get_payload():
-    with open('fixtures/file_metadata/buddha_bar-early_years.json', 'r') as json_file:
+def get_payload(file_name):
+    with open(file_name, 'r') as json_file:
         content = json.loads(json_file.read())
     return content
 
@@ -14,7 +15,7 @@ def get_payload():
 class TestAlbum(unittest.TestCase):
     @patch('app.fm_metadata.metadata.FMMetadata.get_payload_from_api')
     def setUp(self, mock_api):
-        mock_api.return_value = get_payload()
+        mock_api.return_value = get_payload('fixtures/file_metadata/buddha_bar-early_years.json')
         self.fm_album = FMAlbum(artist_name='Buddha Bar', album_name='Early Years')
         self.fm_album_multi_disc = FMAlbum(artist_name='Buddha Bar', album_name='Early Years', disc_splits=[10, 11])
         self.fm_album_3_disc = FMAlbum(artist_name='Buddha Bar', album_name='Early Years', disc_splits=[10, 11, 12])
@@ -86,6 +87,15 @@ class TestAlbum(unittest.TestCase):
         self.assertEqual(1, self.fm_album_3_disc.disc_track_number(1, 1))
         self.assertEqual(1, self.fm_album_3_disc.disc_track_number(11, 2))
         self.assertEqual(1, self.fm_album_3_disc.disc_track_number(22, 3))
+
+    def test_no_image(self):
+        self.assertRaises(NoImageError, self.fm_album.image_location)
+
+    @patch('app.fm_metadata.metadata.FMMetadata.get_payload_from_api')
+    def test_image_location(self, mock_api):
+        mock_api.return_value = get_payload('fixtures/file_metadata/drones-muse.json')
+        fm_album = FMAlbum(artist_name='Muse', album_name='Drones')
+        self.assertEqual('image.jpg', os.path.basename(fm_album.image_location()))
 
 
 if __name__ == '__main__':
